@@ -52,7 +52,7 @@ class RAGRetriever:
                     # Convert distance to similarity score (ChromaDB uses cosine distance) 
                     similarity_score = 1 - distance
                     
-                    if similarity_score >= score_threshold:
+                    if distance <= score_threshold:
                         retrieved_docs.append({
                             'id': doc_id,
                             'content': document,

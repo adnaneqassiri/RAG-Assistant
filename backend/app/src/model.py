@@ -96,7 +96,7 @@ class AdvancedRAGPipline:
         self.llm = llm
         self.history = []
     
-    def query(self, question, top_k=5, min_score=0.2, stream=False, summarize=False):
+    def query(self, question, top_k=5, min_score=2.0, stream=False, summarize=False):
         # Retriever relevant documents
         results = self.retriever.retrieve(question, top_k=top_k, score_threshold=min_score)
         if not results:
