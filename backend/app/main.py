@@ -23,7 +23,7 @@ def get_rag():
 
 router = APIRouter()
 
-# --- INIT (simple version) ---
+# --- INIT ---
 emb_manager = EmbManagaer("all-MiniLM-L6-v2")
 vector_store = VectorStore("pdfs", "data/vector_store")
 retriever = RAGRetriever(vector_store, emb_manager)

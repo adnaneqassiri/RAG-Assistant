@@ -1,0 +1,1 @@
+<img src="imgs/Student assitant with UI architecture.drawio.png">

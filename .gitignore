@@ -2,3 +2,5 @@
 data/vector_store
 data/text_files
 __pycache__
+.vscode
+notes.md
