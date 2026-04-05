@@ -30,8 +30,9 @@ uploaded_file = st.sidebar.file_uploader("Choose a PDF file", type=["pdf"])
 if uploaded_file is not None:
     if st.sidebar.button("Upload"):
         try:
-            files = {"file": (uploaded_file.name, uploaded_file.getvalue(), "application/pdf")}
-
+            files = [
+                ("files", (uploaded_file.name, uploaded_file.getvalue(), "application/pdf"))
+            ]
             response = requests.post(UPLOAD_URL, files=files)
 
             if response.status_code == 200:
@@ -72,7 +73,7 @@ if user_input:
     try:
         response = requests.post(
             API_URL,
-            json={"Question": user_input}
+            json={"question": user_input}
         )
 
         if response.status_code == 200:

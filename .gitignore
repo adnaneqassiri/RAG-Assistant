@@ -4,3 +4,8 @@ data/text_files
 __pycache__
 .vscode
 notes.md
+z_Points_a_suivre.md
+*.pdf
+*.bin
+*.pickle
+chroma.sqlite3

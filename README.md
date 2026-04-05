@@ -1,1 +1,1 @@
-<img src="imgs/Student assitant with UI architecture.drawio.png">
+<img src="imgs/New architecture of RAG assitant .drawio.png">

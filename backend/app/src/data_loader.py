@@ -1,11 +1,28 @@
 import os
-from langchain_community.document_loaders import PyPDFLoader
+from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from pathlib import Path
 import numpy as np
 
 
-
+def process_file(file_path: str):
+    ext = Path(file_path).suffix.lower()
+    if ext == '.docx':
+        loader = Docx2txtLoader(file_path)
+    elif ext == '.pdf':
+        loader = PyPDFLoader(file_path)
+    elif ext == '.txt':
+        loader = TextLoader(file_path, encoding='utf-8')
+    else : 
+        raise ValueError("Unsupported file type")
+    
+    documents = loader.load()
+    for doc in documents:
+        doc.metadata['source_file'] = Path(file_path).name
+        doc.metadata['file_type'] = ext.replace('.', '')
+    
+    return documents
+    
 def process_all_documents(pdf_dir):
     all_documents = []
     pdf_directory = Path(pdf_dir)

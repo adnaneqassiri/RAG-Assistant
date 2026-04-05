@@ -8,7 +8,7 @@ import time
 
 
 class GroqLLM:
-    def __init__(self, model_name="llama-3.3-70b-versatile", api_key = None):
+    def __init__(self, model_name="llama-3.3-70b-versatile", temp=0.3, api_key = None):
         """
         Initialize Groq LLM
         
@@ -26,8 +26,8 @@ class GroqLLM:
         self.llm = ChatGroq(
             model = self.model_name,
             api_key = self.api_key,
-            temperature= 0.1,
-            max_tokens=1024
+            temperature= temp,
+            max_tokens= 2048
         )
         
         print(f"Initialized GROQ LLM with model: {self.model_name}")
@@ -155,5 +155,3 @@ class AdvancedRAGPipline:
             'summary': summary,
             'history': self.history
         }
-        
-        
