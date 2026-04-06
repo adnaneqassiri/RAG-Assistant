@@ -4,14 +4,17 @@ from fastapi import APIRouter, UploadFile, File, HTTPException
 from src.data_loader import process_file, split_documents
 from src.embeddings import EmbManagaer
 from src.vectorstore import VectorStore
-from src.search import RAGRetriever
-from src.model import GroqLLM, AdvancedRAGPipline
-from src.query_router import simple_router
+from src.model_v2 import AdvancedRAGPipline
+from src.query_router import retrieval_router
 from src.not_rag import no_rag
 from pydantic import BaseModel
 from typing import List
 from pathlib import Path
 
+BASE_DIR = Path(__file__).resolve().parent
+DATA_DIR = BASE_DIR / "data"
+UPLOAD_DIR = DATA_DIR / "upload"
+VECTOR_STORE_DIR = DATA_DIR / "vector_store"
 
 app = FastAPI(
     title="RAG Assistant API",
@@ -20,9 +23,8 @@ app = FastAPI(
 
 
 emb_manager = EmbManagaer("all-MiniLM-L6-v2")
-vector_store = VectorStore("files", "data/vector_store")
-retriever = RAGRetriever(vector_store, emb_manager)
-
+vector_store = VectorStore("files", str(VECTOR_STORE_DIR))
+rag = AdvancedRAGPipline("llama-3.3-70b-versatile" , vector_store, emb_manager)
 
 router = APIRouter()
 
@@ -31,6 +33,27 @@ class QueryRequest(BaseModel):
     question: str
 
 
+# Router returns 
+# {
+#  'retrieval_needed': True,
+#  'search_query': 'ESRGAN training SISR',
+#  'generation_query': 'How is ESRGAN trained in the context of SISR',
+#  'metadata_candidates': {
+#       'course': '',
+#       'doc_type': 'SISR document',
+#       'sheet_number': '',
+#       'question_number': ''
+#       },
+#  'metadata_confidence': {
+#       'course': 0.0,
+#       'doc_type': 0.8,
+#       'sheet_number': 0.0,
+#       'question_number': 0.0
+#       },
+#  'search_profile': 'keyword_heavy',
+#  'rule_triggered': True,
+#  'decision_source': 'rule_override'
+# }
 
 
 # ---------------------------
@@ -39,14 +62,30 @@ class QueryRequest(BaseModel):
 @router.post("/query")
 def query(req: QueryRequest):
     question = req.question
-    result = simple_router(query)
-    print(result)
-    if ~result['retrieval_needed']:
-        output = no_rag(question, result['task_type'], result['temperature'])
-    else :
-        llm = GroqLLM(model_name = "llama-3.3-70b-versatile", temp=result['temperature'])
-        rag = AdvancedRAGPipline(retriever, llm)
-        output = rag.query(question, 5, 2, False, False)
+    router = retrieval_router(question)
+    retrieval_needed = router["retrieval_needed"]
+    search_query = router["search_query"] or question
+    generation_query = router["generation_query"] or question
+    search_profile = router["search_profile"]
+
+    # Metadata candidates
+    meta = router["metadata_candidates"]
+
+    # Metadata confidence
+    conf = router["metadata_confidence"]
+    print(router)
+    
+    if not retrieval_needed:
+        output = no_rag(generation_query)
+    else:
+        output = rag.query(
+            query=question,
+            generation_query=generation_query,
+            search_query=search_query,
+            search_profile=search_profile,
+            metadata=meta,
+            metadata_confidence=conf,
+        )
     
     return {
         "answer": output["answer"],
@@ -59,26 +98,36 @@ def query(req: QueryRequest):
 # ---------------------------
 @router.post("/upload")
 def upload_files(files: List[UploadFile] = File(...)):
-    
-    uploadd_dir = 'data/upload'
-    os.makedirs(uploadd_dir, exist_ok=True)
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
+    os.makedirs(VECTOR_STORE_DIR, exist_ok=True)
     
     all_documents = []
+    skipped_files = []
     for file in files:
         filename = Path(file.filename).name
-        save_path = f"{uploadd_dir}/{filename}"
+        save_path = UPLOAD_DIR / filename
         with open(save_path, "wb") as f:
             f.write(file.file.read())
         
         try:
-            documents = process_file(save_path)
+            documents = process_file(str(save_path))
         except ValueError as e:
             raise HTTPException(status_code=400, detail=f"{filename}: {str(e)}")
+
+        file_hash = documents[0].metadata.get("file_hash") if documents else None
+        if file_hash and vector_store.document_exists(file_hash=file_hash):
+            skipped_files.append(filename)
+            continue
         
         all_documents.extend(documents)
         
     if not all_documents:
-        raise HTTPException(status_code=400, detail="No valid documents were processed.")
+        return {
+            "message": "No new files were indexed",
+            "files_uploaded": len(files),
+            "files_skipped": skipped_files,
+            "chunks_created": 0
+        }
     chunks = split_documents(all_documents)
     texts = [doc.page_content for doc in chunks]
     embeddings = emb_manager.generate_embeddings(texts)
@@ -88,7 +137,10 @@ def upload_files(files: List[UploadFile] = File(...)):
     return {
         "message": "Files processed successfully",
         "files_uploaded": len(files),
-        "chunks_created": len(chunks)
+        "files_skipped": skipped_files,
+        "chunks_created": len(chunks),
+        "vector_store_path": str(VECTOR_STORE_DIR),
+        "documents_in_collection": vector_store.collection.count(),
     }
 
 

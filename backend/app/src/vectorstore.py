@@ -1,7 +1,7 @@
 import os
 import chromadb
-import uuid
 import hashlib
+from pathlib import Path
 
 def generate_doc_id(text):
     return hashlib.md5(text.encode('utf-8')).hexdigest()
@@ -30,7 +30,9 @@ class VectorStore:
         Initialize ChromaDB Client and Collection
         """
         try:
-            os.makedirs(self.persist_directory, exist_ok=True)
+            resolved_directory = str(Path(self.persist_directory).resolve())
+            os.makedirs(resolved_directory, exist_ok=True)
+            self.persist_directory = resolved_directory
             self.client = chromadb.PersistentClient(path=self.persist_directory)
             
             self.collection = self.client.get_or_create_collection(
@@ -41,6 +43,7 @@ class VectorStore:
             )
             
             print(f"Vector store initialized. Collection: {self.collection_name}")
+            print(f"Persist directory: {self.persist_directory}")
             print(f"Existing documents in collection: {self.collection.count()}")
             
         except Exception as e:
@@ -69,12 +72,13 @@ class VectorStore:
         
         
         for i, (doc, embeddings) in enumerate(zip(documents, embeddings)):
-            # Generate unique ID
-            doc_id = generate_doc_id(doc.page_content)
+            metadata = dict(doc.metadata)
+
+            file_hash = metadata.get("file_hash", "")
+            chunk_index = metadata.get("chunk_index", i)
+            doc_id = f"{file_hash}:{chunk_index}" if file_hash else generate_doc_id(doc.page_content)
             ids.append(doc_id)
             
-            # Prepare metadata
-            metadata = dict(doc.metadata)
             metadata['doc_index'] = i
             metadata['content_length'] = len(doc.page_content)
             metadatas.append(metadata)
@@ -101,4 +105,38 @@ class VectorStore:
             print(f"Error adding documents: {e}")
             raise
 
+    def document_exists(self, file_hash=None, source_file=None):
+        where = {}
+        if file_hash:
+            where["file_hash"] = file_hash
+        elif source_file:
+            where["source_file"] = source_file
+        else:
+            return False
 
+        results = self.collection.get(where=where, include=["metadatas"])
+        return bool(results.get("ids"))
+
+    def get_documents_by_metadata(self, where=None, limit=None):
+        results = self.collection.get(
+            where=where or None,
+            include=["metadatas", "documents", "embeddings"]
+        )
+
+        ids = results.get("ids", [])
+        documents = results.get("documents", [])
+        metadatas = results.get("metadatas", [])
+        embeddings = results.get("embeddings", [])
+
+        records = []
+        for doc_id, document, metadata, embedding in zip(ids, documents, metadatas, embeddings):
+            records.append({
+                "id": doc_id,
+                "content": document,
+                "metadata": metadata or {},
+                "embedding": embedding,
+            })
+
+        if limit is not None:
+            return records[:limit]
+        return records

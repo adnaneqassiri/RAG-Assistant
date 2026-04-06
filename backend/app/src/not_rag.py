@@ -14,23 +14,11 @@ llm = ChatGroq(
 )
 
 
-def no_rag(query, task_type, temperature):
+def no_rag(query):
     
     prompt = f"""
-You are an AI assistant.
+You are a helpful an AI assistant.
 
-Your task is to answer the user query based on the specified task type.
-
----
-
-Task types:
-- factual_qa → give a precise and correct answer
-- explanation → explain clearly in simple terms
-- summarization → summarize concisely
-- rewrite → improve or rephrase the text
-- creative_generation → generate creative content
-
----
 
 Instructions:
 - Follow the task type strictly
@@ -40,7 +28,6 @@ Instructions:
 
 ---
 
-Task type: {task_type}
 
 User query:
 "{query}"
@@ -50,7 +37,7 @@ Answer:
 
     response = llm.invoke(
         prompt,
-        temperature=temperature
+        temperature=0.4
     )
 
     return {

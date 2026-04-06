@@ -1,8 +1,44 @@
-import os
+import hashlib
+import re
 from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from pathlib import Path
 import numpy as np
+
+
+def _compute_file_hash(file_path: str) -> str:
+    with open(file_path, "rb") as file_handle:
+        return hashlib.md5(file_handle.read()).hexdigest()
+
+
+def _infer_filename_metadata(file_path: str) -> dict:
+    path = Path(file_path)
+    stem = path.stem
+    normalized_stem = re.sub(r"[_\-]+", " ", stem).strip()
+    lowered_stem = normalized_stem.lower()
+
+    doc_type = ""
+    if re.search(r"\b(td|tutorial)\b", lowered_stem):
+        doc_type = "td"
+    elif re.search(r"\b(tp|lab)\b", lowered_stem):
+        doc_type = "tp"
+    elif re.search(r"\b(cours|course|lecture)\b", lowered_stem):
+        doc_type = "course"
+    elif re.search(r"\b(exam|quiz|midterm|final)\b", lowered_stem):
+        doc_type = "exam"
+
+    sheet_number_match = re.search(r"\b(?:td|tp|sheet|chapter|chapitre)\s*[_\- ]?(\d+)\b", lowered_stem)
+    question_number_match = re.search(r"\b(?:question|q)\s*[_\- ]?(\d+)\b", lowered_stem)
+
+    return {
+        "source_file": path.name,
+        "source_file_lower": path.name.lower(),
+        "source_stem": normalized_stem,
+        "source_stem_lower": normalized_stem.lower(),
+        "doc_type": doc_type,
+        "sheet_number": sheet_number_match.group(1) if sheet_number_match else "",
+        "question_number": question_number_match.group(1) if question_number_match else "",
+    }
 
 
 def process_file(file_path: str):
@@ -17,9 +53,13 @@ def process_file(file_path: str):
         raise ValueError("Unsupported file type")
     
     documents = loader.load()
+    file_hash = _compute_file_hash(file_path)
+    shared_metadata = _infer_filename_metadata(file_path)
+    shared_metadata["file_hash"] = file_hash
+    shared_metadata["file_type"] = ext.replace('.', '')
+
     for doc in documents:
-        doc.metadata['source_file'] = Path(file_path).name
-        doc.metadata['file_type'] = ext.replace('.', '')
+        doc.metadata.update(shared_metadata)
     
     return documents
     
@@ -36,9 +76,13 @@ def process_all_documents(pdf_dir):
             loader = PyPDFLoader(str(pdf_file))
             documents = loader.load()
             
+            file_hash = _compute_file_hash(str(pdf_file))
+            shared_metadata = _infer_filename_metadata(str(pdf_file))
+            shared_metadata["file_hash"] = file_hash
+            shared_metadata["file_type"] = "pdf"
+
             for doc in documents:
-                doc.metadata['source_file'] = pdf_file.name
-                doc.metadata['file_type'] = 'pdf'
+                doc.metadata.update(shared_metadata)
                 
             all_documents.extend(documents)
             print(f"Loaded {len(documents)} page")
@@ -62,6 +106,9 @@ def split_documents(documents, chunk_size = 1000, overlap_size = 100) -> np.arra
     )
     split_docs = text_splitter.split_documents(documents)
     print(f"Split {len(documents)} documents into {len(split_docs)} chunks")
+
+    for chunk_index, chunk in enumerate(split_docs):
+        chunk.metadata["chunk_index"] = chunk_index
     
     if split_docs:
         print(f"\nExample chunk:")
@@ -69,4 +116,3 @@ def split_documents(documents, chunk_size = 1000, overlap_size = 100) -> np.arra
         print(f"\t2. Metadata: {split_docs[0].metadata}")
     
     return split_docs
-
