@@ -1,3 +1,5 @@
+# this performs semantic search 
+
 class RAGRetriever:
     """
     Handles query-based retrieval from the vector store

@@ -38,7 +38,7 @@ class VectorStore:
             self.collection = self.client.get_or_create_collection(
                 name=self.collection_name,
                 metadata={
-                    "description": "PDF document embeddings for RAG"
+                    "description": "Document embeddings for RAG"
                 }    
             )
             

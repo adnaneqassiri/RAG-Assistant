@@ -6,17 +6,21 @@ from pathlib import Path
 import numpy as np
 
 
-def _compute_file_hash(file_path: str) -> str:
+def _compute_file_hash(file_path):
+    """
+    Function role is to return a hash md5 for the file, to uniquely identify it and dont double process it
+    """
     with open(file_path, "rb") as file_handle:
         return hashlib.md5(file_handle.read()).hexdigest()
 
 
 def _infer_filename_metadata(file_path: str) -> dict:
     path = Path(file_path)
-    stem = path.stem
-    normalized_stem = re.sub(r"[_\-]+", " ", stem).strip()
-    lowered_stem = normalized_stem.lower()
+    stem = path.stem # Nom du fichier
+    normalized_stem = re.sub(r"[_\-]+", " ", stem).strip() # Nom du fichier sans _ et -
+    lowered_stem = normalized_stem.lower() # lower case name
 
+    # Trying to infer the document type by searching for relevent namings
     doc_type = ""
     if re.search(r"\b(td|tutorial)\b", lowered_stem):
         doc_type = "td"

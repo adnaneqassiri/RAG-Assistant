@@ -142,6 +142,18 @@ class AdvancedRAGPipline:
         if search_profile == "semantic_heavy":
             return {"semantic": 0.65, "keyword": 0.20, "metadata": 0.15}
         return {"semantic": 0.50, "keyword": 0.25, "metadata": 0.25}
+
+    def _format_history(self, max_turns=5):
+        if not self.history:
+            return "No previous conversation."
+
+        formatted_turns = []
+        for item in self.history[-max_turns:]:
+            question = item.get("question", "").strip()
+            answer = item.get("answer", "").strip()
+            formatted_turns.append(f"User: {question}\nAssistant: {answer}")
+
+        return "\n\n".join(formatted_turns)
     
     
     def retrieve(self, search_query, top_k, score_threshold, metadata=None, metadata_confidence=None, search_profile="balanced"):
@@ -259,10 +271,13 @@ class AdvancedRAGPipline:
             return []
 
     def generate_response(self, generation_query, context):
+        conversation_history = self._format_history()
         prompt_template = PromptTemplate(
-            input_variables=["context", "question"],
+            input_variables=["context", "question", "history"],
             template="""
-            You are a helpful AI assistant. Use the following context, to answer the question accurately and concisely.
+            You are a helpful AI assistant. Use the conversation history also for better conversation direction understanding, Use the following context, to answer the question accurately and concisely.
+            Conversation history:
+            {history}
 
             Context: {context}
             
@@ -272,7 +287,11 @@ class AdvancedRAGPipline:
             """
         )
         
-        formatted_prompt = prompt_template.format(context=context, question=generation_query)
+        formatted_prompt = prompt_template.format(
+            context=context,
+            question=generation_query,
+            history=conversation_history,
+        )
         
         try:
             messages = [HumanMessage(content=formatted_prompt)]

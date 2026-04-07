@@ -76,7 +76,12 @@ def query(req: QueryRequest):
     print(router)
     
     if not retrieval_needed:
-        output = no_rag(generation_query)
+        output = no_rag(generation_query, history=rag.history)
+        rag.history.append({
+            "question": question,
+            "answer": output["answer"],
+            "sources": output.get("sources", []),
+        })
     else:
         output = rag.query(
             query=question,
